@@ -1,0 +1,4 @@
+.env
+/nginx_conf/certs/*.pem
+wp_data
+db_data
