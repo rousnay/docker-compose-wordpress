@@ -4,15 +4,32 @@ services:
   database:
     image: mysql:8.0.31
     container_name: database
-    restart: unless-stopped
+    restart: always
     env_file: .env
     environment:
       - MYSQL_DATABASE=wordpress
-    # ports:
-    #   - "3306:3306"
+    ports:
+      - "3306:3306"
     volumes: 
       - ./db_data:/var/lib/mysql
     command: '--default-authentication-plugin=mysql_native_password'
+    networks:
+      - app-network
+
+  phpmyadmin:
+    depends_on:
+      - database
+      - traefik
+    image: phpmyadmin:5.2.0
+    container_name: phpmyadmin
+    restart: always
+    # env_file: .env
+    ports:
+      - "8082:80"
+    environment:
+      #PMA_HOST: database
+      #MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
+      - PMA_ARBITRARY=1
     networks:
       - app-network
 
@@ -21,8 +38,10 @@ services:
       - database
     image: wordpress:6.1.1-fpm-alpine
     container_name: wordpress
-    restart: unless-stopped
+    restart: always
     env_file: .env
+    ports:
+      - "9000:9000"
     environment:
       - WORDPRESS_DB_HOST=database:3306
       - WORDPRESS_DB_USER=$MYSQL_USER
@@ -36,12 +55,12 @@ services:
   webserver:
     depends_on:
       - wordpress
-      # - traefik
+      - traefik
     image: nginx:1.23.3-alpine
     container_name: webserver
-    restart: unless-stopped
+    restart: always
     ports:
-      - "80:80"
+      - "81:80"
       - "443:443"
     volumes:
       - ./wp_data:/var/www/html
@@ -50,35 +69,17 @@ services:
     networks:
       - app-network
 
-  phpmyadmin:
-    depends_on:
-      - database
-      - webserver
-      # - traefik
-    image: phpmyadmin:5.2.0-fpm-alpine
-    container_name: phpmyadmin
-    restart: always
-    env_file: .env
+  traefik:
+    image: traefik:v2.9.6
+    container_name: traefik
+    command: --api.insecure=true --providers.docker
     ports:
-      - "8080:80"
-    environment:
-      #PMA_HOST: database
-      #MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
-      - PMA_ARBITRARY=1
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - app-network
-
-  # traefik:
-  #   image: traefik:v2.9
-  #   container_name: traefik
-  #   command: --api.insecure=true --providers.docker
-  #   ports:
-  #     - "80:80"
-  #     - "8080:8080"
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   networks:
-  #     - app-network
 
 volumes:
   wp_data:
